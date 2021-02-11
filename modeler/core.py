@@ -56,13 +56,13 @@ class Core:
             data = json['data']
             print('Data retrieved from frost.met.no!\n')
             for i in range(len(data)):
-                if filt in data[i]['elementId']:
-                    row.append(data[i]['elementId'])
-                    row2.append(data[i]['validFrom'])
-                    try:
-                        row3.append(data[i]['validTo'])
-                    except:
-                        row3.append(np.nan)
+                # if filt in data[i]['elementId']:
+                row.append(data[i]['elementId'])
+                row2.append(data[i]['validFrom'])
+                try:
+                    row3.append(data[i]['validTo'])
+                except:
+                    row3.append(np.nan)
             elements['elementId']=row
             elements['validFrom']=row2
             elements['validTo']=row3
