@@ -5,23 +5,28 @@ import plotly.express as px
 from windrose import WindroseAxes
 from matplotlib import pyplot as plt
 import matplotlib.cm as cm
+from datetime import datetime, timedelta
 from modeler.core import Core
+
+st.set_page_config(layout="wide")
+maxdate = datetime.today().strftime('%Y-%m-%d')
+mindate = (datetime.today() - timedelta(days=7)).date()
+timerange = str(mindate)+'/'+str(maxdate)
 
 @st.cache
 def load_stations():
     return Core().findstation(country='Norge')
 
-st.title('My first app')
+st.sidebar.title('Met app')
 df = load_stations()
 
-municipality = st.selectbox("Select municipality", sorted(pd.unique(df.municipality).astype(str)))
-name_station = st.selectbox('Select name weather station', list(df[df.municipality == municipality].name))
+
+municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df.municipality).astype(str)),index=213)
+name_station = st.sidebar.selectbox('Select name weather station', list(df[df.municipality == municipality].name),index=1)
 
 map_data = pd.DataFrame(
     list(df[(df.municipality == municipality) & (df.name == name_station)]["geometry.coordinates"]),
     columns=['lon', 'lat'])
-
-st.map(map_data)
 
 dfid = list(df[(df.municipality == municipality) & (df.name == name_station)].id)
 
@@ -30,22 +35,30 @@ def load_source():
     return Core().sourceinfo(source=dfid[0],filt='temp')
 df_source = load_source()
 
-feature = st.selectbox('Select feature',list(df_source.elementId))
+feature = st.sidebar.selectbox('Select feature',list(df_source.elementId),index=13)
+
+st.sidebar.map(map_data)
 
 @st.cache
 def load_features():
-    return Core().graphelement(source=dfid[0], elements= feature[0],referencetime= '2020-12-01/2021-01-01',rollingmean=1)
-df_features = load_features()
+    # return Core().graphelement(source=dfid[0], elements= feature,referencetime= timerange,rollingmean=1)
+    air_temperature = Core().graphelement(source=dfid[0],elements= 'air_temperature',referencetime= timerange,rollingmean=1)
+    precipitation = Core().graphelement(source=dfid[0],elements= 'sum(precipitation_amount P1D)',referencetime= timerange,rollingmean=1)
+    return air_temperature, precipitation
 
-fig = px.line(df_features, x="referenceTime", y="value", title='Title',template="plotly_white")
+df_temperature, df_precipitation = load_features()
 
-st.plotly_chart(fig, use_container_width=True)
+fig_temperature = px.line(df_temperature, x="referenceTime", y="value", title='Title',template="plotly_white")
+st.plotly_chart(fig_temperature,use_container_width=True)
+fig_precipitation = px.bar(df_precipitation, x="referenceTime", y="value", title='Title',template="plotly_white")
+fig_precipitation.update_xaxes(tickvals=df_precipitation.referenceTime,ticklabelmode='period')
+st.plotly_chart(fig_precipitation,use_container_width=True)
 
 @st.cache
 def load_wind():
-    ws = Core().graphelement(source=dfid[0], elements= 'wind_speed',referencetime= '2020-12-01/2021-01-01',rollingmean=1)
+    ws = Core().graphelement(source=dfid[0], elements= 'wind_speed',referencetime= timerange,rollingmean=1)
     ws = ws.set_index("referenceTime").resample('10T').mean().value
-    wd = Core().graphelement(source=dfid[0], elements= 'wind_from_direction',referencetime= '2020-12-01/2021-01-01',rollingmean=1)
+    wd = Core().graphelement(source=dfid[0], elements= 'wind_from_direction',referencetime= timerange,rollingmean=1)
     wd = wd.set_index("referenceTime").resample('10T').mean().value
     return ws, wd
 
@@ -58,4 +71,5 @@ ax.set_xticklabels(['N', 'NW',  'W', 'SW', 'S', 'SE','E', 'NE'])
 ax.set_theta_zero_location('N')
 
 st.set_option('deprecation.showPyplotGlobalUse', False)
-st.pyplot(fig_rose, use_container_width=True)
+col1, col2 = st.beta_columns(2)
+col1.pyplot(fig_rose)
