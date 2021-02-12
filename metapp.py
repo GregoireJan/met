@@ -68,12 +68,10 @@ timerange=(str(d1)+'/'+str(d2))
 if (d2 - d1) < timedelta(days=14):
     elements_temp = 'air_temperature'
     elements_preci = 'sum(precipitation_amount P1D)'
-    rolling = 1
-elif (d2 - d1) < timedelta(days=366):
+elif (d2 - d1) < timedelta(days=366*1):
     elements_temp = 'mean(air_temperature P1D)'
     elements_preci = 'sum(precipitation_amount P1D)'
-    rolling = 14
-elif (d2 - d1) < timedelta(days=366*10):
+elif (d2 - d1) < timedelta(days=366*25):
     elements_temp = 'mean(air_temperature P1M)'
     elements_preci = 'sum(precipitation_amount P1M)'
 else:
@@ -83,27 +81,18 @@ else:
 @st.cache
 def load_features():
     # return Core().graphelement(source=dfid[0], elements= feature,referencetime= timerange,rollingmean=1)
-    air_temperature = Core().graphelement(source=dfid[0],elements= elements_temp,referencetime= timerange,rollingmean=rolling)
+    air_temperature = Core().graphelement(source=dfid[0],elements= elements_temp,referencetime= timerange,rollingmean=1)
     precipitation = Core().graphelement(source=dfid[0],elements= elements_preci,referencetime= timerange,rollingmean=1)
     return air_temperature, precipitation
 
 df_temperature, df_precipitation = load_features()
-
-# col1, col2 = st.beta_columns(2)
-
-# fig_temperature = px.line(df_temperature, x="referenceTime", y="value", title='Title',template="plotly_white")
-# col1.plotly_chart(fig_temperature,use_container_width=True)
-# fig_precipitation = px.bar(df_precipitation, x="referenceTime", y="value", title='Title',template="plotly_white")
-# fig_precipitation.update_xaxes(ticklabelposition='outside left')
-# col1.plotly_chart(fig_precipitation,use_container_width=True)
-
 
 fig_combi = make_subplots(specs=[[{"secondary_y": True}]])#this a one cell subplot
 fig_combi.update_layout(title="Figure Title",
                   template="plotly_white")
 
 trace1 = go.Bar(x=df_precipitation.referenceTime,
-        y=df_precipitation.value)
+        y=df_precipitation.value, opacity=0.4)
  
 
 trace2 = go.Scatter(x=df_temperature.referenceTime,

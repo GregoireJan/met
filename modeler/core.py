@@ -89,13 +89,11 @@ class Core:
         if r.status_code == 200:
             data = json['data']
             print('Data retrieved from frost.met.no!')
-
             df = pd.DataFrame()
             for i in range(len(data)):
-                row = pd.DataFrame(data[i]['observations'])
-                row['referenceTime'] = data[i]['referenceTime']
-                row['sourceId'] = data[i]['sourceId']
-                df = df.append(row)
+                df.loc[i,'sourceId'] = data[i]['sourceId']
+                df.loc[i,'referenceTime'] = data[i]['referenceTime']
+                df.loc[i,'value'] = data[i]['observations'][0]['value']
 
             df = df.reset_index()[['referenceTime','value']]
             df['referenceTime'] = [datetime.strptime(each, '%Y-%m-%dT%H:%M:%S.%fZ') for each in df['referenceTime']]
