@@ -22,13 +22,18 @@ def load_stations():
 st.sidebar.title('Met app')
 df = load_stations()
 
+ids_basic = list(pd.read_csv('ids_basic.csv',header=None,skiprows=1)[1])
+df = df[df['id'].isin(ids_basic)]
+
+print(df)
+
 genre = st.sidebar.radio(
      "What do you want to see?",
      ('Basic', 'Exploration'))
 
 
-municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df.municipality).astype(str)),index=213)
-name_station = st.sidebar.selectbox('Select name weather station', list(df[df.municipality == municipality].name),index=1)
+municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df.municipality).astype(str)),index=92)
+name_station = st.sidebar.selectbox('Select name weather station', list(df[df.municipality == municipality].name))
 
 map_data = pd.DataFrame(
     list(df[(df.municipality == municipality) & (df.name == name_station)]["geometry.coordinates"]),
@@ -54,16 +59,14 @@ df_source = load_source()
 
 
 if genre == 'Basic':
-    feature = st.sidebar.selectbox('Select feature',list(df_source.elementId),index=13)
-    
-    col1, col2 = st.beta_columns(2)
+    # feature = st.sidebar.selectbox('Select feature',list(df_source.elementId))
 
-    d1 = col1.date_input(
-        "When's your birthday",
-        date(2021, 1, 1))
-    d2 = col2.date_input(
-        "When's your birthday",
-        date(2021, 1, 31))
+    d1 = st.sidebar.date_input(
+        "Select first date",
+        (datetime.today() - timedelta(days=7*2)))
+    d2 = st.sidebar.date_input(
+        "Select last date",
+        (datetime.today() - timedelta(days=7)).date())
 
 
     timerange=(str(d1)+'/'+str(d2))
@@ -90,8 +93,8 @@ if genre == 'Basic':
     df_temperature, df_precipitation = load_features()
 
     fig_combi = make_subplots(specs=[[{"secondary_y": True}]])#this a one cell subplot
-    fig_combi.update_layout(title="Figure Title",
-                    template="plotly_white")
+    fig_combi.update_layout(title="Climograph",
+                    template="plotly_white",title_x=0.5)
 
     trace1 = go.Bar(x=df_precipitation.referenceTime,
             y=df_precipitation.value, opacity=0.4,name='Precipitation')
@@ -129,7 +132,7 @@ if genre == 'Basic':
         wd = wd.set_index("referenceTime").resample('10T').mean().value
         return ws, wd
 
-    if (d2 - d1) < timedelta(days=31):
+    if (d2 - d1) < timedelta(days=31*2):
         ws, wd = load_wind()
 
         # ws = np.random.random(50) * 6
@@ -140,7 +143,9 @@ if genre == 'Basic':
         wa = WindroseAxes(fig_rose, rect)
         fig_rose.add_axes(wa)
         wa.bar(wd, ws, normed=True, opening=0.8, edgecolor='white')
-        wa.set_legend()
+        wa.set_legend(title='Wind speed (m/s)')
+        wa.set_title('Windrose')
+    
 
         # ax = WindroseAxes.from_ax()
         # ax.bar(wd, ws, normed=True, opening=0.8, edgecolor='white')
@@ -155,9 +160,74 @@ if genre == 'Basic':
         col2.pyplot(fig_rose)
         # col2.image(image,width=400)
     else:
-        col2.write("too much data for windrose")
+        col2.write("Maximum time range is 2 month")
 
     st.map(map_data)
 
 else:
-    st.write('else')
+
+    feature = st.sidebar.selectbox('Select feature',list(df_source.elementId))
+
+    d1 = st.sidebar.date_input(
+        "Select first date",
+        (datetime.today() - timedelta(days=7*2)))
+    d2 = st.sidebar.date_input(
+        "Select last date",
+        (datetime.today() - timedelta(days=7)).date())
+
+
+    timerange=(str(d1)+'/'+str(d2))
+    # if (d2 - d1) < timedelta(days=14):
+    #     elements_temp = 'air_temperature'
+    #     elements_preci = 'sum(precipitation_amount P1D)'
+    # elif (d2 - d1) < timedelta(days=366*1):
+    #     elements_temp = 'mean(air_temperature P1D)'
+    #     elements_preci = 'sum(precipitation_amount P1D)'
+    # elif (d2 - d1) < timedelta(days=366*25):
+    #     elements_temp = 'mean(air_temperature P1M)'
+    #     elements_preci = 'sum(precipitation_amount P1M)'
+    # else:
+    #     elements_temp = 'mean(air_temperature P1Y)'
+    #     elements_preci = 'sum(precipitation_amount P1Y)'
+
+    @st.cache
+    def load_features():
+        return Core().graphelement(source=dfid[0], elements= feature,referencetime= timerange,rollingmean=1)
+        # air_temperature = Core().graphelement(source=dfid[0],elements= elements_temp,referencetime= timerange,rollingmean=1)
+        # precipitation = Core().graphelement(source=dfid[0],elements= elements_preci,referencetime= timerange,rollingmean=1)
+        # return air_temperature, precipitation
+
+    df_feature = load_features()
+
+    fig_combi = make_subplots(specs=[[{"secondary_y": True}]])#this a one cell subplot
+    fig_combi.update_layout(title="Climograph",
+                    template="plotly_white",title_x=0.5)
+
+    # trace1 = go.Bar(x=df_feature.referenceTime,
+    #         y=df_feature.value, opacity=0.4,name='Precipitation')
+    
+
+    trace2 = go.Scatter(x=df_feature.referenceTime,
+            y=df_feature.value,name='Air Temperature')
+
+    #The first trace is referenced to the default xaxis, yaxis (ie. xaxis='x1', yaxis='y1')
+    fig_combi.add_trace(trace2, secondary_y=False)
+
+    #The second trace is referenced to xaxis='x1'(i.e. 'x1' is common for the two traces) 
+    #and yaxis='y2' (the right side yaxis)
+
+    fig_combi.add_trace(trace2, secondary_y=True)
+
+
+    fig_combi.update_yaxes(#left yaxis
+                    title= 'ml',showgrid= False, secondary_y=False)
+    fig_combi.update_yaxes(#right yaxis
+                    showgrid= True, 
+                    title= '°C',
+                    secondary_y=True)
+
+    # col1, col2 = st.beta_columns((2,1))
+
+    st.plotly_chart(fig_combi,use_container_width=True)
+
+    st.map(map_data)
