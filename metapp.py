@@ -8,7 +8,9 @@ from windrose import WindroseAxes
 from matplotlib import pyplot as plt
 import matplotlib.cm as cm
 from datetime import datetime, timedelta, date, time
+import math
 from modeler.core import Core
+
 
 st.set_page_config(layout="wide")
 # maxdate = datetime.today().date()
@@ -19,54 +21,53 @@ st.set_page_config(layout="wide")
 def load_stations():
     return Core().findstation(country='Norge')
 
-st.sidebar.title('Met app')
+st.title('Meteorological app')
+st.write('Here you see the app...')
 df = load_stations()
 
-ids_basic = list(pd.read_csv('ids_basic.csv',header=None,skiprows=1)[1])
-df = df[df['id'].isin(ids_basic)]
-
-print(df)
+ids_basic = list(pd.read_csv('ids_basic_nonan.csv',header=None,skiprows=1)[1])
+df_basic = df[df['id'].isin(ids_basic)]
 
 genre = st.sidebar.radio(
      "What do you want to see?",
-     ('Basic', 'Exploration'))
+     ('Basic features', 'Exploration mode'))
+
+if genre == 'Basic features':
+
+    municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df_basic.municipality).astype(str)),index=52)
+    name_station = st.sidebar.selectbox('Select name weather station', list(df_basic[df_basic.municipality == municipality].name))
+
+    map_data = pd.DataFrame(
+        list(df_basic[(df_basic.municipality == municipality) & (df_basic.name == name_station)]["geometry.coordinates"]),
+        columns=['lon', 'lat'])
+
+    dfid = list(df_basic[(df_basic.municipality == municipality) & (df_basic.name == name_station)].id)
+
+    @st.cache
+    def load_source():
+        return Core().sourceinfo(source=dfid[0])
+    df_source = load_source()
+
+    # mindate_airtemp = datetime.strptime(min(df_source[df_source.elementId == 'air_temperature'].validFrom),'%Y-%m-%dT%H:%M:%S.%fZ').date()
+    # mindate_precipi = datetime.strptime(min(df_source[df_source.elementId == 'sum(precipitation_amount P1D)'].validFrom),'%Y-%m-%dT%H:%M:%S.%fZ').date()
+    # try:
+    #     maxdate_airtemp = datetime.strptime(max(df_source[df_source.elementId == 'air_temperature'].validTo),'%Y-%m-%dT%H:%M:%S.%fZ').date()
+    # except:
+    #     maxdate_airtemp = datetime.today().date()
+    # try:
+    #     maxdate_precipi = datetime.strptime(max(df_source[df_source.elementId == 'sum(precipitation_amount P1D)'].validTo),'%Y-%m-%dT%H:%M:%S.%fZ').date()
+    # except:
+    #     maxdate_precipi = datetime.today().date()
 
 
-municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df.municipality).astype(str)),index=92)
-name_station = st.sidebar.selectbox('Select name weather station', list(df[df.municipality == municipality].name))
-
-map_data = pd.DataFrame(
-    list(df[(df.municipality == municipality) & (df.name == name_station)]["geometry.coordinates"]),
-    columns=['lon', 'lat'])
-
-dfid = list(df[(df.municipality == municipality) & (df.name == name_station)].id)
-
-@st.cache
-def load_source():
-    return Core().sourceinfo(source=dfid[0])
-df_source = load_source()
-
-# mindate_airtemp = datetime.strptime(min(df_source[df_source.elementId == 'air_temperature'].validFrom),'%Y-%m-%dT%H:%M:%S.%fZ').date()
-# mindate_precipi = datetime.strptime(min(df_source[df_source.elementId == 'sum(precipitation_amount P1D)'].validFrom),'%Y-%m-%dT%H:%M:%S.%fZ').date()
-# try:
-#     maxdate_airtemp = datetime.strptime(max(df_source[df_source.elementId == 'air_temperature'].validTo),'%Y-%m-%dT%H:%M:%S.%fZ').date()
-# except:
-#     maxdate_airtemp = datetime.today().date()
-# try:
-#     maxdate_precipi = datetime.strptime(max(df_source[df_source.elementId == 'sum(precipitation_amount P1D)'].validTo),'%Y-%m-%dT%H:%M:%S.%fZ').date()
-# except:
-#     maxdate_precipi = datetime.today().date()
-
-
-if genre == 'Basic':
     # feature = st.sidebar.selectbox('Select feature',list(df_source.elementId))
 
     d1 = st.sidebar.date_input(
         "Select first date",
-        (datetime.today() - timedelta(days=7*2)))
+        (datetime.today() - timedelta(days=7)))
     d2 = st.sidebar.date_input(
         "Select last date",
-        (datetime.today() - timedelta(days=7)).date())
+        (datetime.today() - timedelta(days=1)).date())
 
 
     timerange=(str(d1)+'/'+str(d2))
@@ -91,6 +92,15 @@ if genre == 'Basic':
         return air_temperature, precipitation
 
     df_temperature, df_precipitation = load_features()
+    df_temperature_positive = df_temperature.copy()
+    df_temperature_positive.loc[df_temperature_positive.value <= 0, 'value'] = np.nan
+    df_temperature_negative = df_temperature.copy()
+    df_temperature_negative.loc[df_temperature_negative.value > 0, 'value'] = np.nan
+
+    list1 = [i for i in range(1,len(df_temperature_positive)) if math.isnan(df_temperature_positive.value[i]) and not math.isnan(df_temperature_positive.value[i-1])]
+    list2 = [i for i in range(1,len(df_temperature_negative)) if math.isnan(df_temperature_negative.value[i]) and not math.isnan(df_temperature_negative.value[i-1])]
+    df_temperature_positive['value'] = [df_temperature_negative.value[i]  if i in list1 else df_temperature_positive.value[i] for i in range(0,len(df_temperature_positive))]
+    df_temperature_negative['value'] = [df_temperature_positive.value[i]  if i in list2 else df_temperature_negative.value[i] for i in range(0,len(df_temperature_negative))]
 
     fig_combi = make_subplots(specs=[[{"secondary_y": True}]])#this a one cell subplot
     fig_combi.update_layout(title="Climograph",
@@ -102,6 +112,11 @@ if genre == 'Basic':
 
     trace2 = go.Scatter(x=df_temperature.referenceTime,
             y=df_temperature.value,name='Air Temperature')
+    trace2p = go.Scatter(x=df_temperature_positive.referenceTime,
+            y=df_temperature_positive.value,name='Air Temperature (positive)',mode='lines',line=dict(color='red', width=1))
+    trace2n = go.Scatter(x=df_temperature_negative.referenceTime,
+            y=df_temperature_negative.value,name='Air Temperature (negative)',mode='lines',line=dict(color='blue', width=1))
+
 
     #The first trace is referenced to the default xaxis, yaxis (ie. xaxis='x1', yaxis='y1')
     fig_combi.add_trace(trace1, secondary_y=False)
@@ -109,8 +124,9 @@ if genre == 'Basic':
     #The second trace is referenced to xaxis='x1'(i.e. 'x1' is common for the two traces) 
     #and yaxis='y2' (the right side yaxis)
 
-    fig_combi.add_trace(trace2, secondary_y=True)
-
+    # fig_combi.add_trace(trace2, secondary_y=True)
+    fig_combi.add_trace(trace2p, secondary_y=True)
+    fig_combi.add_trace(trace2n, secondary_y=True)
 
     fig_combi.update_yaxes(#left yaxis
                     title= 'ml',showgrid= False, secondary_y=False)
@@ -160,74 +176,68 @@ if genre == 'Basic':
         col2.pyplot(fig_rose)
         # col2.image(image,width=400)
     else:
-        col2.write("Maximum time range is 2 month")
+        col2.error("Maximum time range for the windrose is 2 month")
 
     st.map(map_data)
 
 else:
 
-    feature = st.sidebar.selectbox('Select feature',list(df_source.elementId))
+    try:
+        municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df.municipality).astype(str)))
+        name_station = st.sidebar.selectbox('Select name weather station', list(df[df.municipality == municipality].name))
 
-    d1 = st.sidebar.date_input(
-        "Select first date",
-        (datetime.today() - timedelta(days=7*2)))
-    d2 = st.sidebar.date_input(
-        "Select last date",
-        (datetime.today() - timedelta(days=7)).date())
+        map_data = pd.DataFrame(
+            list(df[(df.municipality == municipality) & (df.name == name_station)]["geometry.coordinates"]),
+            columns=['lon', 'lat'])
 
+        dfid = list(df[(df.municipality == municipality) & (df.name == name_station)].id)
+        
+        @st.cache
+        def load_source():
+            return Core().sourceinfo(source=dfid[0])
+        df_source = load_source()
 
-    timerange=(str(d1)+'/'+str(d2))
-    # if (d2 - d1) < timedelta(days=14):
-    #     elements_temp = 'air_temperature'
-    #     elements_preci = 'sum(precipitation_amount P1D)'
-    # elif (d2 - d1) < timedelta(days=366*1):
-    #     elements_temp = 'mean(air_temperature P1D)'
-    #     elements_preci = 'sum(precipitation_amount P1D)'
-    # elif (d2 - d1) < timedelta(days=366*25):
-    #     elements_temp = 'mean(air_temperature P1M)'
-    #     elements_preci = 'sum(precipitation_amount P1M)'
-    # else:
-    #     elements_temp = 'mean(air_temperature P1Y)'
-    #     elements_preci = 'sum(precipitation_amount P1Y)'
+        feature = st.sidebar.selectbox('Select feature',list(df_source.elementId),index=1)
 
-    @st.cache
-    def load_features():
-        return Core().graphelement(source=dfid[0], elements= feature,referencetime= timerange,rollingmean=1)
-        # air_temperature = Core().graphelement(source=dfid[0],elements= elements_temp,referencetime= timerange,rollingmean=1)
-        # precipitation = Core().graphelement(source=dfid[0],elements= elements_preci,referencetime= timerange,rollingmean=1)
-        # return air_temperature, precipitation
-
-    df_feature = load_features()
-
-    fig_combi = make_subplots(specs=[[{"secondary_y": True}]])#this a one cell subplot
-    fig_combi.update_layout(title="Climograph",
-                    template="plotly_white",title_x=0.5)
-
-    # trace1 = go.Bar(x=df_feature.referenceTime,
-    #         y=df_feature.value, opacity=0.4,name='Precipitation')
-    
-
-    trace2 = go.Scatter(x=df_feature.referenceTime,
-            y=df_feature.value,name='Air Temperature')
-
-    #The first trace is referenced to the default xaxis, yaxis (ie. xaxis='x1', yaxis='y1')
-    fig_combi.add_trace(trace2, secondary_y=False)
-
-    #The second trace is referenced to xaxis='x1'(i.e. 'x1' is common for the two traces) 
-    #and yaxis='y2' (the right side yaxis)
-
-    fig_combi.add_trace(trace2, secondary_y=True)
+        d1 = st.sidebar.date_input(
+            "Select first date",
+            (datetime.today() - timedelta(days=7)))
+        d2 = st.sidebar.date_input(
+            "Select last date",
+            (datetime.today() - timedelta(days=1)).date())
 
 
-    fig_combi.update_yaxes(#left yaxis
-                    title= 'ml',showgrid= False, secondary_y=False)
-    fig_combi.update_yaxes(#right yaxis
-                    showgrid= True, 
-                    title= '°C',
-                    secondary_y=True)
+        timerange=(str(d1)+'/'+str(d2))
+        # if (d2 - d1) < timedelta(days=14):
+        #     elements_temp = 'air_temperature'
+        #     elements_preci = 'sum(precipitation_amount P1D)'
+        # elif (d2 - d1) < timedelta(days=366*1):
+        #     elements_temp = 'mean(air_temperature P1D)'
+        #     elements_preci = 'sum(precipitation_amount P1D)'
+        # elif (d2 - d1) < timedelta(days=366*25):
+        #     elements_temp = 'mean(air_temperature P1M)'
+        #     elements_preci = 'sum(precipitation_amount P1M)'
+        # else:
+        #     elements_temp = 'mean(air_temperature P1Y)'
+        #     elements_preci = 'sum(precipitation_amount P1Y)'
 
-    # col1, col2 = st.beta_columns((2,1))
+        @st.cache
+        def load_features():
+            return Core().graphelement(source=dfid[0], elements= feature,referencetime= timerange,rollingmean=1)
+            # air_temperature = Core().graphelement(source=dfid[0],elements= elements_temp,referencetime= timerange,rollingmean=1)
+            # precipitation = Core().graphelement(source=dfid[0],elements= elements_preci,referencetime= timerange,rollingmean=1)
+            # return air_temperature, precipitation
 
-    st.plotly_chart(fig_combi,use_container_width=True)
+        df_feature = load_features()
 
-    st.map(map_data)
+        fig = go.Figure(data=go.Scatter(x=df_feature.referenceTime,y=df_feature.value,name=str(feature),mode='lines',line=dict(color='red', width=1)))
+
+        fig.update_layout(title=str(feature),
+                        template="plotly_white",title_x=0.5)
+
+        st.plotly_chart(fig,use_container_width=True)
+
+        st.map(map_data)
+
+    except:
+        st.error('Please select another feature or another time range')

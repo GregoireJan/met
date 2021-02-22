@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 pd.options.display.max_rows = 999
 
 # Insert your own client ID here
-client_id = '68e4dc04-3f18-4f9f-8a0a-9c793d40bd79'
+client_id = open(".met_id").read()
 
 class Core:
     def __init__(self):
