@@ -21,8 +21,7 @@ st.set_page_config(layout="wide")
 def load_stations():
     return Core().findstation(country='Norge')
 
-st.title('Meteorological app')
-st.write('Here you see the app...')
+st.sidebar.title('Meteorological app')
 df = load_stations()
 
 ids_basic = list(pd.read_csv('ids_basic_nonan.csv',header=None,skiprows=1)[1])
@@ -97,24 +96,30 @@ if genre == 'Basic features':
     df_temperature_negative = df_temperature.copy()
     df_temperature_negative.loc[df_temperature_negative.value > 0, 'value'] = np.nan
 
-    list1 = [i for i in range(1,len(df_temperature_positive)) if math.isnan(df_temperature_positive.value[i]) and not math.isnan(df_temperature_positive.value[i-1])]
-    list2 = [i for i in range(1,len(df_temperature_negative)) if math.isnan(df_temperature_negative.value[i]) and not math.isnan(df_temperature_negative.value[i-1])]
-    df_temperature_positive['value'] = [df_temperature_negative.value[i]  if i in list1 else df_temperature_positive.value[i] for i in range(0,len(df_temperature_positive))]
-    df_temperature_negative['value'] = [df_temperature_positive.value[i]  if i in list2 else df_temperature_negative.value[i] for i in range(0,len(df_temperature_negative))]
+    df_temperature_positive = df_temperature_positive.set_index('referenceTime')
+    df_temperature_negative = df_temperature_negative.set_index('referenceTime')
+    df_precipitation = df_precipitation.set_index('referenceTime')
 
+    idxp = [i for i in range(1,len(df_temperature_positive)) if math.isnan(df_temperature_positive.iloc[i,0]) and not math.isnan(df_temperature_positive.iloc[i-1,0])]
+    idxn = [i for i in range(0,len(df_temperature_positive)-1) if math.isnan(df_temperature_positive.iloc[i,0]) and not math.isnan(df_temperature_positive.iloc[i+1,0])]
+    idxts = [df_temperature_positive.index[i-1]+(df_temperature_positive.index[i]-df_temperature_positive.index[i-1])/2 for i in pd.unique(idxp)] + [df_temperature_positive.index[i]+(df_temperature_positive.index[i+1]-df_temperature_positive.index[i])/2 for i in pd.unique(idxn)]
+    zeros = pd.DataFrame([0]*len(idxts),columns=['value'],index=idxts)
+    df_temperature_positive = df_temperature_positive.append(zeros).sort_index()
+    df_temperature_negative = df_temperature_negative.append(zeros).sort_index()
+    
     fig_combi = make_subplots(specs=[[{"secondary_y": True}]])#this a one cell subplot
     fig_combi.update_layout(title="Climograph",
                     template="plotly_white",title_x=0.5)
 
-    trace1 = go.Bar(x=df_precipitation.referenceTime,
+    trace1 = go.Bar(x=df_precipitation.index,
             y=df_precipitation.value, opacity=0.4,name='Precipitation')
     
 
-    trace2 = go.Scatter(x=df_temperature.referenceTime,
-            y=df_temperature.value,name='Air Temperature')
-    trace2p = go.Scatter(x=df_temperature_positive.referenceTime,
+    # trace2 = go.Scatter(x=df_temperature.index,
+    #         y=df_temperature.value,name='Air Temperature')
+    trace2p = go.Scatter(x=df_temperature_positive.index,
             y=df_temperature_positive.value,name='Air Temperature (positive)',mode='lines',line=dict(color='red', width=1))
-    trace2n = go.Scatter(x=df_temperature_negative.referenceTime,
+    trace2n = go.Scatter(x=df_temperature_negative.index,
             y=df_temperature_negative.value,name='Air Temperature (negative)',mode='lines',line=dict(color='blue', width=1))
 
 
