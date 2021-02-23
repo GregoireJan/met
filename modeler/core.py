@@ -3,10 +3,6 @@ import pandas as pd
 import numpy as np
 from datetime import datetime 
 from pandas import json_normalize
-import seaborn as sns
-import matplotlib.pyplot as plt
-
-pd.options.display.max_rows = 999
 
 # Insert your own client ID here
 client_id = open(".met_id").read()
