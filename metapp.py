@@ -13,9 +13,6 @@ from modeler.core import Core
 
 
 st.set_page_config(layout="wide")
-# maxdate = datetime.today().date()
-# mindate = (datetime.today() - timedelta(days=7)).date()
-# timerange = str(mindate)+'/'+str(maxdate)
 
 @st.cache
 def load_stations():

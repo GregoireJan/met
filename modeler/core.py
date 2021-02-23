@@ -5,7 +5,8 @@ from datetime import datetime
 from pandas import json_normalize
 
 # Insert your own client ID here
-client_id = open(".met_id").read()
+# client_id = open(".met_id").read()
+client_id = '68e4dc04-3f18-4f9f-8a0a-9c793d40bd79'
 
 class Core:
     def __init__(self):
