@@ -14,50 +14,46 @@ from modeler.core import Core
 
 st.set_page_config(layout="wide")
 
+##############################################################################################################################################
+st.sidebar.title('Norwegian Meteorological app')
+
+
+# Load stations list in Norway
 @st.cache
 def load_stations():
     return Core().findstation(country='Norge')
-
-st.sidebar.title('Meteorological app')
 df = load_stations()
 
+# Filter list by selecting only statoins with air temp + precipitations + wind speed/directoin
 ids_basic = list(pd.read_csv('ids_basic_nonan.csv',header=None,skiprows=1)[1])
 df_basic = df[df['id'].isin(ids_basic)]
 
+# Select between Basic features viz or Exploration
 genre = st.sidebar.radio(
      "What do you want to see?",
      ('Basic features', 'Exploration mode'))
 
 if genre == 'Basic features':
 
+    # Select Municipality and station
     municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df_basic.municipality).astype(str)),index=52)
     name_station = st.sidebar.selectbox('Select name weather station', list(df_basic[df_basic.municipality == municipality].name))
 
+    # Prepare map data
     map_data = pd.DataFrame(
         list(df_basic[(df_basic.municipality == municipality) & (df_basic.name == name_station)]["geometry.coordinates"]),
         columns=['lon', 'lat'])
 
+    # Get id for selected station
     dfid = list(df_basic[(df_basic.municipality == municipality) & (df_basic.name == name_station)].id)
 
+    # Get source info about the selected station
     @st.cache
     def load_source():
         return Core().sourceinfo(source=dfid[0])
     df_source = load_source()
 
-    # mindate_airtemp = datetime.strptime(min(df_source[df_source.elementId == 'air_temperature'].validFrom),'%Y-%m-%dT%H:%M:%S.%fZ').date()
-    # mindate_precipi = datetime.strptime(min(df_source[df_source.elementId == 'sum(precipitation_amount P1D)'].validFrom),'%Y-%m-%dT%H:%M:%S.%fZ').date()
-    # try:
-    #     maxdate_airtemp = datetime.strptime(max(df_source[df_source.elementId == 'air_temperature'].validTo),'%Y-%m-%dT%H:%M:%S.%fZ').date()
-    # except:
-    #     maxdate_airtemp = datetime.today().date()
-    # try:
-    #     maxdate_precipi = datetime.strptime(max(df_source[df_source.elementId == 'sum(precipitation_amount P1D)'].validTo),'%Y-%m-%dT%H:%M:%S.%fZ').date()
-    # except:
-    #     maxdate_precipi = datetime.today().date()
-
-
-    # feature = st.sidebar.selectbox('Select feature',list(df_source.elementId))
-
+    # Select time range
     d1 = st.sidebar.date_input(
         "Select first date",
         (datetime.today() - timedelta(days=7)))
@@ -65,7 +61,7 @@ if genre == 'Basic features':
         "Select last date",
         (datetime.today() - timedelta(days=1)).date())
 
-
+    # Compupte time range and select appropriate feature accordingly
     timerange=(str(d1)+'/'+str(d2))
     if (d2 - d1) < timedelta(days=14):
         elements_temp = 'air_temperature'
@@ -80,13 +76,14 @@ if genre == 'Basic features':
         elements_temp = 'mean(air_temperature P1Y)'
         elements_preci = 'sum(precipitation_amount P1Y)'
 
+    # Get data for the selected station / feature / time range
     @st.cache
     def load_features():
-        # return Core().graphelement(source=dfid[0], elements= feature,referencetime= timerange,rollingmean=1)
         air_temperature = Core().graphelement(source=dfid[0],elements= elements_temp,referencetime= timerange,rollingmean=1)
         precipitation = Core().graphelement(source=dfid[0],elements= elements_preci,referencetime= timerange,rollingmean=1)
         return air_temperature, precipitation
 
+    # Insert value when temperature crossess 0 in order to get blue/red coloring
     df_temperature, df_precipitation = load_features()
     df_temperature_positive = df_temperature.copy()
     df_temperature_positive.loc[df_temperature_positive.value <= 0, 'value'] = np.nan
@@ -103,7 +100,8 @@ if genre == 'Basic features':
     zeros = pd.DataFrame([0]*len(idxts),columns=['value'],index=idxts)
     df_temperature_positive = df_temperature_positive.append(zeros).sort_index()
     df_temperature_negative = df_temperature_negative.append(zeros).sort_index()
-    
+
+    # Prepare plot for temperature and precipitations
     fig_combi = make_subplots(specs=[[{"secondary_y": True}]])#this a one cell subplot
     fig_combi.update_layout(title="Climograph",
                     template="plotly_white",title_x=0.5)
@@ -111,14 +109,10 @@ if genre == 'Basic features':
     trace1 = go.Bar(x=df_precipitation.index,
             y=df_precipitation.value, opacity=0.4,name='Precipitation')
     
-
-    # trace2 = go.Scatter(x=df_temperature.index,
-    #         y=df_temperature.value,name='Air Temperature')
     trace2p = go.Scatter(x=df_temperature_positive.index,
             y=df_temperature_positive.value,name='Air Temperature (positive)',mode='lines',line=dict(color='red', width=1))
     trace2n = go.Scatter(x=df_temperature_negative.index,
             y=df_temperature_negative.value,name='Air Temperature (negative)',mode='lines',line=dict(color='blue', width=1))
-
 
     #The first trace is referenced to the default xaxis, yaxis (ie. xaxis='x1', yaxis='y1')
     fig_combi.add_trace(trace1, secondary_y=False)
@@ -126,7 +120,6 @@ if genre == 'Basic features':
     #The second trace is referenced to xaxis='x1'(i.e. 'x1' is common for the two traces) 
     #and yaxis='y2' (the right side yaxis)
 
-    # fig_combi.add_trace(trace2, secondary_y=True)
     fig_combi.add_trace(trace2p, secondary_y=True)
     fig_combi.add_trace(trace2n, secondary_y=True)
 
@@ -137,11 +130,7 @@ if genre == 'Basic features':
                     title= '°C',
                     secondary_y=True)
 
-    col1, col2 = st.beta_columns((2,1))
-
-    col1.plotly_chart(fig_combi,use_container_width=True)
-
-
+    # Load wind data
     @st.cache
     def load_wind():
         ws = Core().graphelement(source=dfid[0], elements= 'wind_speed',referencetime= timerange,rollingmean=1)
@@ -150,11 +139,41 @@ if genre == 'Basic features':
         wd = wd.set_index("referenceTime").resample('10T').mean().value
         return ws, wd
 
+    # Layout accordingly if windrose is plotted (timerange < 2 month)
     if (d2 - d1) < timedelta(days=31*2):
-        ws, wd = load_wind()
 
-        # ws = np.random.random(50) * 6
-        # wd = np.random.randint(270,360, size=50)
+        # Plot temp and precipitations
+        col1, col2 = st.beta_columns((2,1))
+
+        # Previous years comparison
+        year_comparison = st.sidebar.text_input('Enter how many years back you want to compare the current temperatures/precipitations to (e.g. type 4 for 4 years back):', 'None')
+
+        if (year_comparison != 'None') and (year_comparison != 'none') :
+            year_comparison = int(year_comparison)
+            timerange_comp=(str(d1.replace(year=d1.year-year_comparison))+'/'+str(d2.replace(year=d1.year-year_comparison)))
+
+            @st.cache
+            def load_features_comp():
+                air_temperature_comp = Core().graphelement(source=dfid[0],elements= elements_temp,referencetime= timerange_comp,rollingmean=1)
+                precipitation_comp = Core().graphelement(source=dfid[0],elements= elements_preci,referencetime= timerange_comp,rollingmean=1)
+                return air_temperature_comp, precipitation_comp
+
+            df_temperature_comp, df_precipitation_comp = load_features_comp()
+            df_temperature_comp = df_temperature_comp.set_index('referenceTime')
+            df_precipitation_comp = df_precipitation_comp.set_index('referenceTime')
+            df_temperature_comp.index = df_temperature_comp.index + pd.offsets.DateOffset(years=year_comparison)
+            df_precipitation_comp.index = df_precipitation_comp.index + pd.offsets.DateOffset(years=year_comparison)
+            trace2c = go.Scatter(x=df_temperature_comp.index,
+                y=df_temperature_comp.value,name='Air Temperature (comparison)',mode='lines',line=dict(color='black', width=1),opacity=0.15,hovertemplate='(%{text}, %{y})',text=load_features_comp()[0].set_index('referenceTime').index.strftime("%b %d, %Y, %H:%M"))
+            fig_combi.add_trace(trace2c, secondary_y=True)
+            trace1c = go.Bar(x=df_precipitation_comp.index,y=df_precipitation_comp.value, marker_color='lightblue', opacity=0.25,name='Precipitation (comparison)',hovertemplate='(%{text}, %{y})',text=load_features_comp()[1].set_index('referenceTime').index.strftime("%b %d, %Y"))
+            fig_combi.add_trace(trace1c, secondary_y=False)
+
+        col1.plotly_chart(fig_combi,use_container_width=True)
+
+
+        # Windrose plot
+        ws, wd = load_wind()
 
         fig_rose = plt.figure()
         rect = [1,1,1,1] 
@@ -163,83 +182,67 @@ if genre == 'Basic features':
         wa.bar(wd, ws, normed=True, opening=0.8, edgecolor='white')
         wa.set_legend(title='Wind speed (m/s)')
         wa.set_title('Windrose')
-    
-
-        # ax = WindroseAxes.from_ax()
-        # ax.bar(wd, ws, normed=True, opening=0.8, edgecolor='white')
-        # ax.set_legend()
-
-        # plt.savefig('windrose.png')
-
-        # from PIL import Image
-        # image = Image.open('windrose.png')
 
         st.set_option('deprecation.showPyplotGlobalUse', False)
         col2.pyplot(fig_rose)
-        # col2.image(image,width=400)
     else:
-        col2.error("Maximum time range for the windrose is 2 month")
+        # Plot only temp and precipitations
+        st.error("Maximum time range for the Windrose and comparing temperatures is 2 month.")
+        st.plotly_chart(fig_combi,use_container_width=True)
 
+    # Plot map
     st.map(map_data)
 
 else:
 
     try:
+        # Select Municipality and station
         municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df.municipality).astype(str)))
         name_station = st.sidebar.selectbox('Select name weather station', list(df[df.municipality == municipality].name))
 
+        # Map data
         map_data = pd.DataFrame(
             list(df[(df.municipality == municipality) & (df.name == name_station)]["geometry.coordinates"]),
             columns=['lon', 'lat'])
 
+        # Get station id
         dfid = list(df[(df.municipality == municipality) & (df.name == name_station)].id)
         
+        # Load data
         @st.cache
         def load_source():
             return Core().sourceinfo(source=dfid[0])
         df_source = load_source()
 
+        # Select feature to plot
         feature = st.sidebar.selectbox('Select feature',list(df_source.elementId),index=1)
 
+        #Select time range
         d1 = st.sidebar.date_input(
             "Select first date",
             (datetime.today() - timedelta(days=7)))
         d2 = st.sidebar.date_input(
             "Select last date",
             (datetime.today() - timedelta(days=1)).date())
-
-
         timerange=(str(d1)+'/'+str(d2))
-        # if (d2 - d1) < timedelta(days=14):
-        #     elements_temp = 'air_temperature'
-        #     elements_preci = 'sum(precipitation_amount P1D)'
-        # elif (d2 - d1) < timedelta(days=366*1):
-        #     elements_temp = 'mean(air_temperature P1D)'
-        #     elements_preci = 'sum(precipitation_amount P1D)'
-        # elif (d2 - d1) < timedelta(days=366*25):
-        #     elements_temp = 'mean(air_temperature P1M)'
-        #     elements_preci = 'sum(precipitation_amount P1M)'
-        # else:
-        #     elements_temp = 'mean(air_temperature P1Y)'
-        #     elements_preci = 'sum(precipitation_amount P1Y)'
 
+        # Load data for selected station / feature / time range
         @st.cache
         def load_features():
             return Core().graphelement(source=dfid[0], elements= feature,referencetime= timerange,rollingmean=1)
-            # air_temperature = Core().graphelement(source=dfid[0],elements= elements_temp,referencetime= timerange,rollingmean=1)
-            # precipitation = Core().graphelement(source=dfid[0],elements= elements_preci,referencetime= timerange,rollingmean=1)
-            # return air_temperature, precipitation
-
         df_feature = load_features()
 
+        # Prepare plot
         fig = go.Figure(data=go.Scatter(x=df_feature.referenceTime,y=df_feature.value,name=str(feature),mode='lines',line=dict(color='red', width=1)))
-
         fig.update_layout(title=str(feature),
                         template="plotly_white",title_x=0.5)
 
+        st.text('In exploration mode you can select any stations and visualize any available features')
+        # Plot feature
         st.plotly_chart(fig,use_container_width=True)
-
+        # Plot map
         st.map(map_data)
 
     except:
+        # Error if not avaiblable
         st.error('Please select another feature or another time range')

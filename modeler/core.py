@@ -8,6 +8,7 @@ from pandas import json_normalize
 # client_id = open(".met_id").read()
 client_id = '68e4dc04-3f18-4f9f-8a0a-9c793d40bd79'
 
+# Python class to find station / get source info / get data from frost.met.no API
 class Core:
     def __init__(self):
         pass
