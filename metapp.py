@@ -37,7 +37,7 @@ if genre == 'Basic features':
 
     # Select Municipality and station
     municipality = st.sidebar.selectbox("Select municipality", sorted(pd.unique(df_basic.municipality).astype(str)),index=52)
-    name_station = st.sidebar.selectbox('Select name weather station', list(df_basic[df_basic.municipality == municipality].name))
+    name_station = st.sidebar.selectbox('Select weather station', list(df_basic[df_basic.municipality == municipality].name))
 
     # Prepare map data
     map_data = pd.DataFrame(
@@ -187,7 +187,7 @@ if genre == 'Basic features':
         col2.pyplot(fig_rose)
     else:
         # Plot only temp and precipitations
-        st.error("Maximum time range for the Windrose and comparing temperatures is 2 month.")
+        st.error("Maximum time range for the Windrose and comparison is 2 month.")
         st.plotly_chart(fig_combi,use_container_width=True)
 
     # Plot map
@@ -237,7 +237,6 @@ else:
         fig.update_layout(title=str(feature),
                         template="plotly_white",title_x=0.5)
 
-        st.text('In exploration mode you can select any stations and visualize any available features')
         # Plot feature
         st.plotly_chart(fig,use_container_width=True)
         # Plot map
@@ -246,3 +245,4 @@ else:
     except:
         # Error if not avaiblable
         st.error('Please select another feature or another time range')
+        st.write('Available time range: ', min(df_source[df_source.elementId == feature].validFrom.fillna(datetime.today())),' to ',max(df_source[df_source.elementId == feature].validTo.fillna(datetime.today())))
