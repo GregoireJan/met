@@ -14,6 +14,21 @@ from modeler.core import Core
 
 st.set_page_config(layout="wide")
 
+hide_streamlit_style = """
+            <style>
+            footer:after {
+                content:'by https://gregoirejan.github.io / Using frost.met.no API'; 
+                visibility: visible;
+                display: block;
+                position: relative;
+                #background-color: red;
+                padding: 5px;
+                top: 2px;
+            }
+            </style>
+            """
+st.markdown(hide_streamlit_style, unsafe_allow_html=True) 
+
 ##############################################################################################################################################
 st.sidebar.title('Norwegian Meteorological app')
 
@@ -146,7 +161,7 @@ if genre == 'Basic features':
         col1, col2 = st.beta_columns((2,1))
 
         # Previous years comparison
-        year_comparison = st.sidebar.text_input('Enter how many years back you want to compare the current temperatures/precipitations to (e.g. type 4 for 4 years back):', 'None')
+        year_comparison = st.sidebar.text_input('Compare current temperatures/precipitations to previous years (e.g. type 4 for 4 years back):', 'None')
 
         if (year_comparison != 'None') and (year_comparison != 'none') :
             year_comparison = int(year_comparison)
