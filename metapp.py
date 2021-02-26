@@ -119,7 +119,7 @@ if genre == 'Basic features':
     # Prepare plot for temperature and precipitations
     fig_combi = make_subplots(specs=[[{"secondary_y": True}]])#this a one cell subplot
     fig_combi.update_layout(title="Climograph",
-                    template="plotly_white",title_x=0.5)
+                    template="plotly_white",title_x=0.5,legend=dict(orientation='h'))
 
     trace1 = go.Bar(x=df_precipitation.index,
             y=df_precipitation.value, opacity=0.4,name='Precipitation')
@@ -250,7 +250,7 @@ else:
         # Prepare plot
         fig = go.Figure(data=go.Scatter(x=df_feature.referenceTime,y=df_feature.value,name=str(feature),mode='lines',line=dict(color='red', width=1)))
         fig.update_layout(title=str(feature),
-                        template="plotly_white",title_x=0.5)
+                        template="plotly_white",title_x=0.5,legend=dict(orientation='h'))
 
         # Plot feature
         st.plotly_chart(fig,use_container_width=True)
