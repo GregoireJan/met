@@ -3,3 +3,6 @@
 count_elements.csv
 ids_basics.csv
 met.ipynb
+.vscode
+count_elements.csv
+.gitignore
