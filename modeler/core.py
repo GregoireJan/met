@@ -4,11 +4,15 @@ import numpy as np
 from datetime import datetime 
 from pandas import json_normalize
 import streamlit as st
+import os
 
 
 # Insert your own client ID here
 # client_id = open(".met_id").read()
-client_id = st.secrets["db_password"]
+try:
+    client_id = st.secrets["db_password"]
+except:
+    client_id = os.environ['met_id']
 
 # Python class to find station / get source info / get data from frost.met.no API
 class Core:
