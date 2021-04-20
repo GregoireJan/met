@@ -8,10 +8,11 @@ import os
 
 
 # Insert your own client ID here
-# client_id = open(".met_id").read()
 try:
+    # Secrets for met in Streamlit
     client_id = st.secrets["db_password"]
 except:
+    # Secrets for met in Travis
     client_id = os.environ['met_id']
 
 # Python class to find station / get source info / get data from frost.met.no API
